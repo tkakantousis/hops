@@ -24,6 +24,7 @@ import org.apache.hadoop.yarn.api.records.URL;
 import org.junit.Test;
 
 import java.net.URISyntaxException;
+import org.apache.hadoop.yarn.api.records.NodeId;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
@@ -58,5 +59,18 @@ public class TestConverterUtils {
   @Test
   public void testContainerIdNull() throws URISyntaxException {
     assertNull(ConverterUtils.toString((ContainerId) null));
+  }
+  
+  @Test
+  public void testNodeIdWithDefaultPort() throws URISyntaxException {
+    NodeId nid;
+    
+    nid = ConverterUtils.toNodeIdWithDefaultPort("node:10");
+    assertEquals(nid.getPort(), 10);
+    assertEquals(nid.getHost(), "node");
+    
+    nid = ConverterUtils.toNodeIdWithDefaultPort("node");
+    assertEquals(nid.getPort(), 0);
+    assertEquals(nid.getHost(), "node");
   }
 }
