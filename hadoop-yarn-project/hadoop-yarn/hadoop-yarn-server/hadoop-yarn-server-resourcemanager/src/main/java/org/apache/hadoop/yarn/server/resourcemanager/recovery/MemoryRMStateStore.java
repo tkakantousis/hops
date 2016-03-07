@@ -27,6 +27,8 @@ import org.apache.hadoop.security.token.delegation.DelegationKey;
 import org.apache.hadoop.yarn.api.records.ApplicationAttemptId;
 import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.exceptions.YarnRuntimeException;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.records.ApplicationAttemptStateData;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.records.ApplicationStateData;
 import org.apache.hadoop.yarn.security.client.RMDelegationTokenIdentifier;
 import org.apache.hadoop.yarn.server.api.records.MasterKey;
 import org.apache.hadoop.yarn.server.resourcemanager.RMContext;
@@ -81,7 +83,7 @@ public class MemoryRMStateStore extends RMStateStore {
 
   @Override
   public void storeApplicationStateInternal(ApplicationId appId,
-      ApplicationStateDataPBImpl appStateData) throws Exception {
+      ApplicationStateData appStateData) throws Exception {
     ApplicationState appState = new ApplicationState(appStateData.
         getSubmitTime(), appStateData.getStartTime(),
         appStateData.getApplicationSubmissionContext(), appStateData.getUser());
@@ -90,7 +92,7 @@ public class MemoryRMStateStore extends RMStateStore {
 
   @Override
   public void updateApplicationStateInternal(ApplicationId appId,
-      ApplicationStateDataPBImpl appStateData) throws Exception {
+      ApplicationStateData appStateData) throws Exception {
     ApplicationState updatedAppState = new ApplicationState(appStateData.
         getSubmitTime(), appStateData.getStartTime(),
         appStateData.getApplicationSubmissionContext(), appStateData.getUser(),
@@ -109,7 +111,7 @@ public class MemoryRMStateStore extends RMStateStore {
   @Override
   public synchronized void storeApplicationAttemptStateInternal(
       ApplicationAttemptId appAttemptId,
-      ApplicationAttemptStateDataPBImpl attemptStateData) throws Exception {
+      ApplicationAttemptStateData attemptStateData) throws Exception {
     Credentials credentials = null;
     if (attemptStateData.getAppAttemptTokens() != null) {
       DataInputByteBuffer dibb = new DataInputByteBuffer();
@@ -133,7 +135,7 @@ public class MemoryRMStateStore extends RMStateStore {
   @Override
   public synchronized void updateApplicationAttemptStateInternal(
       ApplicationAttemptId appAttemptId,
-      ApplicationAttemptStateDataPBImpl attemptStateData) throws Exception {
+      ApplicationAttemptStateData attemptStateData) throws Exception {
     Credentials credentials = null;
     if (attemptStateData.getAppAttemptTokens() != null) {
       DataInputByteBuffer dibb = new DataInputByteBuffer();

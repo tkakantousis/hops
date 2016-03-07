@@ -44,6 +44,8 @@ import org.apache.hadoop.yarn.server.api.records.impl.pb.MasterKeyPBImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.records.RMStateVersion;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.records.impl.pb.ApplicationAttemptStateDataPBImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.records.impl.pb.ApplicationStateDataPBImpl;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.records.ApplicationAttemptStateData;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.records.ApplicationStateData;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.records.impl.pb.RMStateVersionPBImpl;
 import org.apache.hadoop.yarn.util.ConverterUtils;
 
@@ -56,6 +58,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import org.apache.hadoop.yarn.server.resourcemanager.RMContext;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.records.ApplicationStateData;
 
 @Private
 @Unstable
@@ -327,7 +330,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.RMContext;
 
   @Override
   public synchronized void storeApplicationStateInternal(ApplicationId appId,
-      ApplicationStateDataPBImpl appStateDataPB) throws Exception {
+      ApplicationStateData appStateDataPB) throws Exception {
     String appIdStr = appId.toString();
     Path appDirPath = getAppDir(rmAppRoot, appIdStr);
     fs.mkdirs(appDirPath);
@@ -347,7 +350,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.RMContext;
 
   @Override
   public synchronized void updateApplicationStateInternal(ApplicationId appId,
-      ApplicationStateDataPBImpl appStateDataPB) throws Exception {
+      ApplicationStateData appStateDataPB) throws Exception {
     String appIdStr = appId.toString();
     Path appDirPath = getAppDir(rmAppRoot, appIdStr);
     Path nodeCreatePath = getNodePath(appDirPath, appIdStr);
@@ -367,7 +370,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.RMContext;
   @Override
   public synchronized void storeApplicationAttemptStateInternal(
       ApplicationAttemptId appAttemptId,
-      ApplicationAttemptStateDataPBImpl attemptStateDataPB) throws Exception {
+      ApplicationAttemptStateData attemptStateDataPB) throws Exception {
     Path appDirPath = getAppDir(rmAppRoot, appAttemptId.getApplicationId().
         toString());
     Path nodeCreatePath = getNodePath(appDirPath, appAttemptId.toString());

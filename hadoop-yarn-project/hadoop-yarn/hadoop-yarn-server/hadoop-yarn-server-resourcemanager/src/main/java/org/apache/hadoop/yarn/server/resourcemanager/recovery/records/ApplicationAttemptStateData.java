@@ -16,6 +16,7 @@
  */
 package org.apache.hadoop.yarn.server.resourcemanager.recovery.records;
 
+import java.io.IOException;
 import org.apache.hadoop.classification.InterfaceAudience.Public;
 import org.apache.hadoop.classification.InterfaceStability.Unstable;
 import org.apache.hadoop.yarn.api.records.ApplicationAttemptId;
@@ -29,13 +30,54 @@ import org.apache.hadoop.yarn.server.resourcemanager.rmapp.attempt.RMAppAttemptS
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Set;
+import org.apache.hadoop.io.DataOutputBuffer;
+import org.apache.hadoop.security.Credentials;
+import org.apache.hadoop.yarn.proto.YarnServerResourceManagerServiceProtos.ApplicationAttemptStateDataProto;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.RMStateStore.ApplicationAttemptState;
+import org.apache.hadoop.yarn.util.Records;
 
 /*
  * Contains the state data that needs to be persisted for an ApplicationAttempt
  */
 @Public
 @Unstable
-public interface ApplicationAttemptStateData {
+public abstract class ApplicationAttemptStateData {
+  public static ApplicationAttemptStateData newInstance(
+      ApplicationAttemptId attemptId, Container container,
+      ByteBuffer attemptTokens, long startTime, RMAppAttemptState finalState,
+      String finalTrackingUrl, String diagnostics,
+      FinalApplicationStatus amUnregisteredFinalStatus) {
+    ApplicationAttemptStateData attemptStateData =
+        Records.newRecord(ApplicationAttemptStateData.class);
+    attemptStateData.setAttemptId(attemptId);
+    attemptStateData.setMasterContainer(container);
+    attemptStateData.setAppAttemptTokens(attemptTokens);
+    attemptStateData.setState(finalState);
+    attemptStateData.setFinalTrackingUrl(finalTrackingUrl);
+    attemptStateData.setDiagnostics(diagnostics);
+    attemptStateData.setStartTime(startTime);
+    attemptStateData.setFinalApplicationStatus(amUnregisteredFinalStatus);
+    return attemptStateData;
+  }
+
+  public static ApplicationAttemptStateData newInstance(
+      ApplicationAttemptState attemptState) throws IOException {
+    Credentials credentials = attemptState.getAppAttemptCredentials();
+    ByteBuffer appAttemptTokens = null;
+    if (credentials != null) {
+      DataOutputBuffer dob = new DataOutputBuffer();
+      credentials.writeTokenStorageToStream(dob);
+      appAttemptTokens = ByteBuffer.wrap(dob.getData(), 0, dob.getLength());
+    }
+    return newInstance(attemptState.getAttemptId(),
+        attemptState.getMasterContainer(), appAttemptTokens,
+        attemptState.getStartTime(), attemptState.getState(),
+        attemptState.getFinalTrackingUrl(),
+        attemptState.getDiagnostics(),
+        attemptState.getFinalApplicationStatus());
+  }
+
+  public abstract ApplicationAttemptStateDataProto getProto();
 
   /**
    * The ApplicationAttemptId for the application attempt
@@ -44,9 +86,9 @@ public interface ApplicationAttemptStateData {
    */
   @Public
   @Unstable
-  public ApplicationAttemptId getAttemptId();
+  public abstract ApplicationAttemptId getAttemptId();
 
-  public void setAttemptId(ApplicationAttemptId attemptId);
+  public abstract void setAttemptId(ApplicationAttemptId attemptId);
 
   /*
    * The master container running the application attempt
@@ -54,9 +96,9 @@ public interface ApplicationAttemptStateData {
    */
   @Public
   @Unstable
-  public Container getMasterContainer();
+  public abstract Container getMasterContainer();
 
-  public void setMasterContainer(Container container);
+  public abstract void setMasterContainer(Container container);
 
   /**
    * The application attempt tokens that belong to this attempt
@@ -65,18 +107,18 @@ public interface ApplicationAttemptStateData {
    */
   @Public
   @Unstable
-  public ByteBuffer getAppAttemptTokens();
+  public abstract ByteBuffer getAppAttemptTokens();
 
-  public void setAppAttemptTokens(ByteBuffer attemptTokens);
+  public abstract void setAppAttemptTokens(ByteBuffer attemptTokens);
 
   /**
    * Get the final state of the application attempt.
    *
    * @return the final state of the application attempt.
    */
-  public RMAppAttemptState getState();
+  public abstract RMAppAttemptState getState();
 
-  public void setState(RMAppAttemptState state);
+  public abstract void setState(RMAppAttemptState state);
 
   /**
    * Get the original not-proxied <em>final tracking url</em> for the
@@ -85,68 +127,68 @@ public interface ApplicationAttemptStateData {
    * @return the original not-proxied <em>final tracking url</em> for the
    * application
    */
-  public String getFinalTrackingUrl();
+  public abstract String getFinalTrackingUrl();
 
   /**
    * Set the final tracking Url of the AM.
    *
    * @param url
    */
-  public void setFinalTrackingUrl(String url);
+  public abstract void setFinalTrackingUrl(String url);
 
   /**
    * Get the <em>diagnositic information</em> of the attempt
    *
    * @return <em>diagnositic information</em> of the attempt
    */
-  public String getDiagnostics();
+  public abstract String getDiagnostics();
 
-  public void setDiagnostics(String diagnostics);
+  public abstract void setDiagnostics(String diagnostics);
 
   /**
    * Get the <em>start time</em> of the application.
    *
    * @return <em>start time</em> of the application
    */
-  public long getStartTime();
+  public abstract long getStartTime();
 
-  public void setStartTime(long startTime);
+  public abstract void setStartTime(long startTime);
 
   /**
    * Get the <em>final finish status</em> of the application.
    *
    * @return <em>final finish status</em> of the application
    */
-  public FinalApplicationStatus getFinalApplicationStatus();
+  public abstract FinalApplicationStatus getFinalApplicationStatus();
 
-  public void setFinalApplicationStatus(FinalApplicationStatus finishState);
+  public abstract void setFinalApplicationStatus(FinalApplicationStatus finishState);
   
-  public int getAMContainerExitStatus();
+  public abstract int getAMContainerExitStatus();
 
-  public void setAMContainerExitStatus(int exitStatus);
+  public abstract void setAMContainerExitStatus(int exitStatus);
   /**
    * Get the <em>Progress</em> of the application.
    *
    * @return <em>Progress</em> of the application
    */
-  public float getProgress();
+  public abstract float getProgress();
 
-  public void setProgress(float startTime);
+  public abstract void setProgress(float startTime);
 
-  public String getHost();
+  public abstract String getHost();
 
-  public void setHost(String Host);
+  public abstract void setHost(String Host);
 
-  public int getRpcPort();
+  public abstract int getRpcPort();
 
-  public void setRpcPort(int rpcPort);
+  public abstract void setRpcPort(int rpcPort);
 
-  public void addALLRanNodes(List<YarnProtos.NodeIdProto> ranNodes);
+  public abstract void addALLRanNodes(List<YarnProtos.NodeIdProto> ranNodes);
 
-  public Set<NodeId> getRanNodes();
+  public abstract Set<NodeId> getRanNodes();
 
-  public List<ContainerStatus> getJustFinishedContainers();
+  public abstract List<ContainerStatus> getJustFinishedContainers();
 
-  public void addAllJustFinishedContainers(
+  public abstract void addAllJustFinishedContainers(
       List<YarnProtos.ContainerStatusProto> justFinishedContainers);
 }

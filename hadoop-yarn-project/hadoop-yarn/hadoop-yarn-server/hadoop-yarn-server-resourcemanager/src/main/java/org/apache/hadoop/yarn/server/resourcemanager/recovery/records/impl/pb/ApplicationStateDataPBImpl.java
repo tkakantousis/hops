@@ -35,10 +35,9 @@ import org.apache.hadoop.yarn.server.resourcemanager.rmapp.RMAppState;
 
 import java.util.ArrayList;
 import java.util.List;
-
-public class ApplicationStateDataPBImpl
-    extends ProtoBase<ApplicationStateDataProto>
-    implements ApplicationStateData {
+import com.google.protobuf.TextFormat;
+ 
+public class ApplicationStateDataPBImpl extends ApplicationStateData {
   private static final RecordFactory recordFactory =
       RecordFactoryProvider.getRecordFactory(null);
 
@@ -58,6 +57,7 @@ public class ApplicationStateDataPBImpl
     viaProto = true;
   }
   
+  @Override
   public ApplicationStateDataProto getProto() {
     mergeLocalToProto();
     proto = viaProto ? proto : builder.build();
@@ -251,22 +251,24 @@ public class ApplicationStateDataPBImpl
     builder.addAllUpdatedNodesId(updatedNodesIdProto);
   }
 
-  public static ApplicationStateData newApplicationStateData(long submitTime,
-      long startTime, String user,
-      ApplicationSubmissionContext submissionContext, RMAppState state,
-      String diagnostics, long finishTime, List<NodeId> updatedNodesId) {
+  @Override
+  public int hashCode() {
+    return getProto().hashCode();
+  }
 
-    ApplicationStateData appState =
-        recordFactory.newRecordInstance(ApplicationStateData.class);
-    appState.setSubmitTime(submitTime);
-    appState.setStartTime(startTime);
-    appState.setUser(user);
-    appState.setApplicationSubmissionContext(submissionContext);
-    appState.setState(state);
-    appState.setDiagnostics(diagnostics);
-    appState.setFinishTime(finishTime);
-    appState.setUpdatedNodesId(updatedNodesId);
-    return appState;
+  @Override
+  public boolean equals(Object other) {
+    if (other == null)
+      return false;
+    if (other.getClass().isAssignableFrom(this.getClass())) {
+      return this.getProto().equals(this.getClass().cast(other).getProto());
+    }
+    return false;
+  }
+
+  @Override
+  public String toString() {
+    return TextFormat.shortDebugString(getProto());
   }
 
   private static String RM_APP_PREFIX = "RMAPP_";

@@ -70,8 +70,8 @@ import org.apache.hadoop.yarn.server.resourcemanager.recovery.RMStateStore.Appli
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.RMStateStore.ApplicationState;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.RMStateStore.RMState;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.RMStateStoreEvent;
-import org.apache.hadoop.yarn.server.resourcemanager.recovery.records.impl.pb.ApplicationAttemptStateDataPBImpl;
-import org.apache.hadoop.yarn.server.resourcemanager.recovery.records.impl.pb.ApplicationStateDataPBImpl;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.records.ApplicationAttemptStateData;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.records.ApplicationStateData;
 import org.apache.hadoop.yarn.server.resourcemanager.rmapp.RMApp;
 import org.apache.hadoop.yarn.server.resourcemanager.rmapp.RMAppState;
 import org.apache.hadoop.yarn.server.resourcemanager.rmapp.attempt.RMAppAttempt;
@@ -640,7 +640,7 @@ public class TestRMRestart {
 
       @Override
       public void updateApplicationStateInternal(ApplicationId appId,
-          ApplicationStateDataPBImpl appStateData) throws Exception {
+          ApplicationStateData appStateData) throws Exception {
         if (count == 0) {
           // do nothing; simulate app final state is not saved.
           LOG.info(appId + " final state is not saved.");
@@ -795,14 +795,14 @@ public class TestRMRestart {
       @Override
       public synchronized void storeApplicationAttemptStateInternal(
           ApplicationAttemptId attemptId,
-          ApplicationAttemptStateDataPBImpl attemptStateData) throws Exception {
+          ApplicationAttemptStateData attemptStateData) throws Exception {
         // ignore attempt saving request.
       }
 
       @Override
       public synchronized void updateApplicationAttemptStateInternal(
           ApplicationAttemptId attemptId,
-          ApplicationAttemptStateDataPBImpl attemptStateData) throws Exception {
+          ApplicationAttemptStateData attemptStateData) throws Exception {
         // ignore attempt saving request.
       }
     };
@@ -1932,7 +1932,7 @@ public class TestRMRestart {
 
     @Override
     public void updateApplicationStateInternal(ApplicationId appId,
-        ApplicationStateDataPBImpl appStateData) throws Exception {
+        ApplicationStateData appStateData) throws Exception {
       updateApp = ++count;
       super.updateApplicationStateInternal(appId, appStateData);
     }
@@ -1940,7 +1940,7 @@ public class TestRMRestart {
     @Override
     public synchronized void updateApplicationAttemptStateInternal(
         ApplicationAttemptId attemptId,
-        ApplicationAttemptStateDataPBImpl attemptStateData) throws Exception {
+        ApplicationAttemptStateData attemptStateData) throws Exception {
       updateAttempt = ++count;
       super.updateApplicationAttemptStateInternal(attemptId, attemptStateData);
     }

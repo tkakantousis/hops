@@ -41,11 +41,11 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import com.google.protobuf.TextFormat;
 import java.util.Set;
-
-public class ApplicationAttemptStateDataPBImpl
-    extends ProtoBase<ApplicationAttemptStateDataProto>
-    implements ApplicationAttemptStateData {
+ 
+public class ApplicationAttemptStateDataPBImpl extends
+    ApplicationAttemptStateData {
 
   private static final RecordFactory recordFactory =
       RecordFactoryProvider.getRecordFactory(null);
@@ -86,7 +86,8 @@ public class ApplicationAttemptStateDataPBImpl
           .setMasterContainer(((ContainerPBImpl) masterContainer).getProto());
     }
     if (this.appAttemptTokens != null) {
-      builder.setAppAttemptTokens(convertToProtoFormat(this.appAttemptTokens));
+      builder.setAppAttemptTokens(ProtoUtils.convertToProtoFormat(
+          this.appAttemptTokens));
     }
   }
 
@@ -159,7 +160,8 @@ public class ApplicationAttemptStateDataPBImpl
     if (!p.hasAppAttemptTokens()) {
       return null;
     }
-    this.appAttemptTokens = convertFromProtoFormat(p.getAppAttemptTokens());
+    this.appAttemptTokens = ProtoUtils.convertFromProtoFormat(
+        p.getAppAttemptTokens());
     return appAttemptTokens;
   }
 
@@ -332,47 +334,27 @@ public class ApplicationAttemptStateDataPBImpl
     builder.addAllJustFinishedFontainers(justFinishedContainers);
   }
 
-  public static ApplicationAttemptStateData newApplicationAttemptStateData(
-      ApplicationAttemptId attemptId, Container container,
-      ByteBuffer attemptTokens, long startTime, RMAppAttemptState finalState,
-      String finalTrackingUrl, String diagnostics,
-      FinalApplicationStatus amUnregisteredFinalStatus, int exitStatus, Set<NodeId> ranNodes,
-      List<ContainerStatus> justFinishedContainers, float progress, String host,
-      int rpcPort) {
-    ApplicationAttemptStateData attemptStateData =
-        recordFactory.newRecordInstance(ApplicationAttemptStateData.class);
-    attemptStateData.setAttemptId(attemptId);
-    attemptStateData.setMasterContainer(container);
-    attemptStateData.setAppAttemptTokens(attemptTokens);
-    attemptStateData.setState(finalState);
-    attemptStateData.setFinalTrackingUrl(finalTrackingUrl);
-    attemptStateData.setDiagnostics(diagnostics);
-    attemptStateData.setStartTime(startTime);
-    attemptStateData.setFinalApplicationStatus(amUnregisteredFinalStatus);
-    attemptStateData.setAMContainerExitStatus(exitStatus);
-    attemptStateData.setProgress(progress);
-    attemptStateData.setHost(host);
-    attemptStateData.setRpcPort(rpcPort);
-
-    List<YarnProtos.NodeIdProto> nodeIds =
-        new ArrayList<YarnProtos.NodeIdProto>();
-    for (NodeId nodeId : ranNodes) {
-      nodeIds.add(((NodeIdPBImpl) nodeId).getProto());
+  @Override
+  public int hashCode() {
+    return getProto().hashCode();
+   }
+ 
+  @Override
+  public boolean equals(Object other) {
+    if (other == null)
+      return false;
+    if (other.getClass().isAssignableFrom(this.getClass())) {
+      return this.getProto().equals(this.getClass().cast(other).getProto());
     }
-    attemptStateData.addALLRanNodes(nodeIds);
-
-    if (justFinishedContainers != null) {
-      List<YarnProtos.ContainerStatusProto> justFinishedContainersProto =
-          new ArrayList<YarnProtos.ContainerStatusProto>();
-      for (ContainerStatus containerStatus : justFinishedContainers) {
-        justFinishedContainersProto
-            .add(((ContainerStatusPBImpl) containerStatus).getProto());
-      }
-      attemptStateData
-          .addAllJustFinishedContainers(justFinishedContainersProto);
-    }
-    return attemptStateData;
+    return false;
   }
+
+  @Override
+  public String toString() {
+    return TextFormat.shortDebugString(getProto());
+  }
+  
+  
 
   private static String RM_APP_ATTEMPT_PREFIX = "RMATTEMPT_";
 

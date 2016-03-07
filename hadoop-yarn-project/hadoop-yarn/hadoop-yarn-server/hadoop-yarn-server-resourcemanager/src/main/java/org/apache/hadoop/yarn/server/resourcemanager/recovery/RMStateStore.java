@@ -84,6 +84,8 @@ import org.apache.hadoop.yarn.server.resourcemanager.RMContext;
 import org.apache.hadoop.yarn.server.resourcemanager.RMFatalEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.RMFatalEventType;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.records.RMStateVersion;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.records.ApplicationAttemptStateData;
+import org.apache.hadoop.yarn.server.resourcemanager.recovery.records.ApplicationStateData;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.records.impl.pb.ApplicationAttemptStateDataPBImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.recovery.records.impl.pb.ApplicationStateDataPBImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.rmapp.RMApp;
@@ -94,6 +96,11 @@ import org.apache.hadoop.yarn.server.resourcemanager.rmapp.attempt.RMAppAttempt;
 import org.apache.hadoop.yarn.server.resourcemanager.rmapp.attempt.RMAppAttemptState;
 import org.apache.hadoop.yarn.server.resourcemanager.rmapp.attempt.event.RMAppAttemptNewSavedEvent;
 import org.apache.hadoop.yarn.server.resourcemanager.rmapp.attempt.event.RMAppAttemptUpdateSavedEvent;
+import org.apache.hadoop.yarn.state.InvalidStateTransitonException;
+import org.apache.hadoop.yarn.state.SingleArcTransition;
+import org.apache.hadoop.yarn.state.StateMachine;
+import org.apache.hadoop.yarn.state.StateMachineFactory;
+ 
 import org.apache.hadoop.yarn.server.resourcemanager.rmcontainer.RMContainerImpl;
 import org.apache.hadoop.yarn.server.resourcemanager.rmnode.RMNodeImpl;
 import org.apache.hadoop.yarn.util.ConverterUtils;
@@ -139,8 +146,163 @@ import org.apache.hadoop.yarn.server.resourcemanager.rmcontainer.RMContainerStat
   
   public static final Log LOG = LogFactory.getLog(RMStateStore.class);
 
+    private enum RMStateStoreState {
+    DEFAULT
+  };
+
+  private static final StateMachineFactory<RMStateStore,
+                                           RMStateStoreState,
+                                           RMStateStoreEventType, 
+                                           RMStateStoreEvent>
+      stateMachineFactory = new StateMachineFactory<RMStateStore,
+                                                    RMStateStoreState,
+                                                    RMStateStoreEventType,
+                                                    RMStateStoreEvent>(
+      RMStateStoreState.DEFAULT)
+      .addTransition(RMStateStoreState.DEFAULT, RMStateStoreState.DEFAULT,
+          RMStateStoreEventType.STORE_APP, new StoreAppTransition())
+      .addTransition(RMStateStoreState.DEFAULT, RMStateStoreState.DEFAULT,
+          RMStateStoreEventType.UPDATE_APP, new UpdateAppTransition())
+      .addTransition(RMStateStoreState.DEFAULT, RMStateStoreState.DEFAULT,
+          RMStateStoreEventType.REMOVE_APP, new RemoveAppTransition())
+      .addTransition(RMStateStoreState.DEFAULT, RMStateStoreState.DEFAULT,
+          RMStateStoreEventType.STORE_APP_ATTEMPT, new StoreAppAttemptTransition())
+      .addTransition(RMStateStoreState.DEFAULT, RMStateStoreState.DEFAULT,
+          RMStateStoreEventType.UPDATE_APP_ATTEMPT, new UpdateAppAttemptTransition());
+
+  private final StateMachine<RMStateStoreState,
+                             RMStateStoreEventType,
+                             RMStateStoreEvent> stateMachine;
+
+  private static class StoreAppTransition
+      implements SingleArcTransition<RMStateStore, RMStateStoreEvent> {
+    @Override
+    public void transition(RMStateStore store, RMStateStoreEvent event) {
+      if (!(event instanceof RMStateStoreAppEvent)) {
+        // should never happen
+        LOG.error("Illegal event type: " + event.getClass());
+        return;
+      }
+      ApplicationState appState = ((RMStateStoreAppEvent) event).getAppState();
+      ApplicationId appId = appState.getAppId();
+      ApplicationStateData appStateData = ApplicationStateData
+          .newInstance(appState);
+      LOG.info("Storing info for app: " + appId);
+      try {
+        store.storeApplicationStateInternal(appId, appStateData);
+        store.notifyDoneStoringApplication(appId, null);
+      } catch (Exception e) {
+        LOG.error("Error storing app: " + appId, e);
+        store.notifyStoreOperationFailed(e);
+      }
+    };
+  }
+
+  private static class UpdateAppTransition implements
+      SingleArcTransition<RMStateStore, RMStateStoreEvent> {
+    @Override
+    public void transition(RMStateStore store, RMStateStoreEvent event) {
+      if (!(event instanceof RMStateUpdateAppEvent)) {
+        // should never happen
+        LOG.error("Illegal event type: " + event.getClass());
+        return;
+      }
+      ApplicationState appState = ((RMStateUpdateAppEvent) event).getAppState();
+      ApplicationId appId = appState.getAppId();
+      ApplicationStateData appStateData = ApplicationStateData
+          .newInstance(appState);
+      LOG.info("Updating info for app: " + appId);
+      try {
+        store.updateApplicationStateInternal(appId, appStateData);
+        store.notifyDoneUpdatingApplication(appId, null);
+      } catch (Exception e) {
+        LOG.error("Error updating app: " + appId, e);
+        store.notifyStoreOperationFailed(e);
+      }
+    };
+  }
+
+  private static class RemoveAppTransition implements
+      SingleArcTransition<RMStateStore, RMStateStoreEvent> {
+    @Override
+    public void transition(RMStateStore store, RMStateStoreEvent event) {
+      if (!(event instanceof RMStateStoreRemoveAppEvent)) {
+        // should never happen
+        LOG.error("Illegal event type: " + event.getClass());
+        return;
+      }
+      ApplicationState appState = ((RMStateStoreRemoveAppEvent) event)
+          .getAppState();
+      ApplicationId appId = appState.getAppId();
+      LOG.info("Removing info for app: " + appId);
+      try {
+        store.removeApplicationStateInternal(appState);
+      } catch (Exception e) {
+        LOG.error("Error removing app: " + appId, e);
+        store.notifyStoreOperationFailed(e);
+      }
+    };
+  }
+
+  private static class StoreAppAttemptTransition implements
+      SingleArcTransition<RMStateStore, RMStateStoreEvent> {
+    @Override
+    public void transition(RMStateStore store, RMStateStoreEvent event) {
+      if (!(event instanceof RMStateStoreAppAttemptEvent)) {
+        // should never happen
+        LOG.error("Illegal event type: " + event.getClass());
+        return;
+      }
+      ApplicationAttemptState attemptState =
+          ((RMStateStoreAppAttemptEvent) event).getAppAttemptState();
+      try {
+        ApplicationAttemptStateData attemptStateData = 
+            ApplicationAttemptStateData.newInstance(attemptState);
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("Storing info for attempt: " + attemptState.getAttemptId());
+        }
+        store.storeApplicationAttemptStateInternal(attemptState.getAttemptId(),
+            attemptStateData);
+        store.notifyDoneStoringApplicationAttempt(attemptState.getAttemptId(),
+            null);
+      } catch (Exception e) {
+        LOG.error("Error storing appAttempt: " + attemptState.getAttemptId(), e);
+        store.notifyStoreOperationFailed(e);
+      }
+    };
+  }
+
+  private static class UpdateAppAttemptTransition implements
+      SingleArcTransition<RMStateStore, RMStateStoreEvent> {
+    @Override
+    public void transition(RMStateStore store, RMStateStoreEvent event) {
+      if (!(event instanceof RMStateUpdateAppAttemptEvent)) {
+        // should never happen
+        LOG.error("Illegal event type: " + event.getClass());
+        return;
+      }
+      ApplicationAttemptState attemptState =
+          ((RMStateUpdateAppAttemptEvent) event).getAppAttemptState();
+      try {
+        ApplicationAttemptStateData attemptStateData = ApplicationAttemptStateData
+            .newInstance(attemptState);
+        if (LOG.isDebugEnabled()) {
+          LOG.debug("Updating info for attempt: " + attemptState.getAttemptId());
+        }
+        store.updateApplicationAttemptStateInternal(attemptState.getAttemptId(),
+            attemptStateData);
+        store.notifyDoneUpdatingApplicationAttempt(attemptState.getAttemptId(),
+            null);
+      } catch (Exception e) {
+        LOG.error("Error updating appAttempt: " + attemptState.getAttemptId(), e);
+        store.notifyStoreOperationFailed(e);
+      }
+    };
+  }
+
   public RMStateStore() {
     super(RMStateStore.class.getName());
+    stateMachine = stateMachineFactory.make(this);
   }
 
   /**
@@ -1049,10 +1211,10 @@ import org.apache.hadoop.yarn.server.resourcemanager.rmcontainer.RMContainerStat
    * application.
    */
   protected abstract void storeApplicationStateInternal(ApplicationId appId,
-      ApplicationStateDataPBImpl appStateData) throws Exception;
+      ApplicationStateData appStateData) throws Exception;
 
   protected abstract void updateApplicationStateInternal(ApplicationId appId,
-      ApplicationStateDataPBImpl appStateData) throws Exception;
+      ApplicationStateData appStateData) throws Exception;
 
   @SuppressWarnings(
       "unchecked")
@@ -1091,11 +1253,11 @@ import org.apache.hadoop.yarn.server.resourcemanager.rmcontainer.RMContainerStat
    */
   protected abstract void storeApplicationAttemptStateInternal(
       ApplicationAttemptId attemptId,
-      ApplicationAttemptStateDataPBImpl attemptStateData) throws Exception;
+      ApplicationAttemptStateData attemptStateData) throws Exception;
 
   protected abstract void updateApplicationAttemptStateInternal(
       ApplicationAttemptId attemptId,
-      ApplicationAttemptStateDataPBImpl attemptStateData) throws Exception;
+      ApplicationAttemptStateData attemptStateData) throws Exception;
 
   /**
    * RMDTSecretManager call this to store the state of a delegation token
@@ -1297,115 +1459,10 @@ import org.apache.hadoop.yarn.server.resourcemanager.rmcontainer.RMContainerStat
 
   // Dispatcher related code
   protected void handleStoreEvent(RMStateStoreEvent event) {
-    if (event.getType().equals(RMStateStoreEventType.STORE_APP) ||
-        event.getType().equals(RMStateStoreEventType.UPDATE_APP)) {
-      ApplicationState appState = null;
-      if (event.getType().equals(RMStateStoreEventType.STORE_APP)) {
-        appState = ((RMStateStoreAppEvent) event).getAppState();
-      } else {
-        assert event.getType().equals(RMStateStoreEventType.UPDATE_APP);
-        appState = ((RMStateUpdateAppEvent) event).getAppState();
-      }
-
-      Exception storedException = null;
-      ApplicationStateDataPBImpl appStateData =
-          (ApplicationStateDataPBImpl) ApplicationStateDataPBImpl
-              .newApplicationStateData(appState.getSubmitTime(),
-                  appState.getStartTime(), appState.getUser(),
-                  appState.getApplicationSubmissionContext(), appState.
-                      getState(), appState.getDiagnostics(),
-                  appState.getFinishTime(), appState.getUpdatedNodes());
-
-      ApplicationId appId = appState.getApplicationSubmissionContext().
-          getApplicationId();
-
-      LOG.info("Storing info for app: " + appId);
-      try {
-        if (event.getType().equals(RMStateStoreEventType.STORE_APP)) {
-          storeApplicationStateInternal(appId, appStateData);
-          notifyDoneStoringApplication(appId, storedException, event.
-              getTransactionState());
-        } else {
-          assert event.getType().equals(RMStateStoreEventType.UPDATE_APP);
-          updateApplicationStateInternal(appId, appStateData);
-          notifyDoneUpdatingApplication(appId, storedException, event.
-              getTransactionState());
-        }
-      } catch (Exception e) {
-        LOG.error("Error storing/updating app: " + appId, e);
-        notifyStoreOperationFailed(e, event.getTransactionState());
-      }
-    } else if (
-        event.getType().equals(RMStateStoreEventType.STORE_APP_ATTEMPT) ||
-            event.getType().equals(RMStateStoreEventType.UPDATE_APP_ATTEMPT)) {
-
-      ApplicationAttemptState attemptState = null;
-      if (event.getType().equals(RMStateStoreEventType.STORE_APP_ATTEMPT)) {
-        attemptState = ((RMStateStoreAppAttemptEvent) event).
-            getAppAttemptState();
-      } else {
-        assert event.getType().equals(RMStateStoreEventType.UPDATE_APP_ATTEMPT);
-        attemptState = ((RMStateUpdateAppAttemptEvent) event).
-            getAppAttemptState();
-      }
-
-      Exception storedException = null;
-      Credentials credentials = attemptState.getAppAttemptCredentials();
-      ByteBuffer appAttemptTokens = null;
-      try {
-        if (credentials != null) {
-          DataOutputBuffer dob = new DataOutputBuffer();
-          credentials.writeTokenStorageToStream(dob);
-          appAttemptTokens = ByteBuffer.wrap(dob.getData(), 0, dob.getLength());
-        }
-        ApplicationAttemptStateDataPBImpl attemptStateData =
-            (ApplicationAttemptStateDataPBImpl) ApplicationAttemptStateDataPBImpl
-                .
-                    newApplicationAttemptStateData(attemptState.getAttemptId(),
-                        attemptState.getMasterContainer(), appAttemptTokens,
-                        attemptState.getStartTime(), attemptState.getState(),
-                        attemptState.getFinalTrackingUrl(),
-                        attemptState.getDiagnostics(),
-                        attemptState.getFinalApplicationStatus(),
-                        attemptState.getAMContainerExitStatus(),
-                        attemptState.getRanNodes(),
-                        attemptState.getJustFinishedContainers(),
-                        attemptState.getProgress(), attemptState.getHost(),
-                        attemptState.getRpcPort());
-        if (LOG.isDebugEnabled()) {
-          LOG.debug("Storing info for attempt: " + attemptState.getAttemptId());
-        }
-        if (event.getType().equals(RMStateStoreEventType.STORE_APP_ATTEMPT)) {
-          storeApplicationAttemptStateInternal(attemptState.getAttemptId(),
-              attemptStateData);
-          notifyDoneStoringApplicationAttempt(attemptState.getAttemptId(),
-              storedException, event.getTransactionState());
-        } else {
-          assert event.getType()
-              .equals(RMStateStoreEventType.UPDATE_APP_ATTEMPT);
-          updateApplicationAttemptStateInternal(attemptState.getAttemptId(),
-              attemptStateData);
-          notifyDoneUpdatingApplicationAttempt(attemptState.getAttemptId(),
-              storedException, event.getTransactionState());
-        }
-      } catch (Exception e) {
-        LOG.error("Error storing/updating appAttempt: " + attemptState.getAttemptId(),
-            e);
-        notifyStoreOperationFailed(e, event.getTransactionState());
-      }
-    } else if (event.getType().equals(RMStateStoreEventType.REMOVE_APP)) {
-      ApplicationState appState = ((RMStateStoreRemoveAppEvent) event).
-          getAppState();
-      ApplicationId appId = appState.getAppId();
-      LOG.info("Removing info for app: " + appId);
-      try {
-        removeApplicationStateInternal(appState);
-      } catch (Exception e) {
-        LOG.error("Error removing app: " + appId, e);
-        notifyStoreOperationFailed(e, event.getTransactionState());
-      }
-    } else {
-      LOG.error("Unknown RMStateStoreEvent type: " + event.getType());
+    try {
+      this.stateMachine.doTransition(event.getType(), event);
+    } catch (InvalidStateTransitonException e) {
+      LOG.error("Can't handle this event at current state", e);
     }
   }
 
