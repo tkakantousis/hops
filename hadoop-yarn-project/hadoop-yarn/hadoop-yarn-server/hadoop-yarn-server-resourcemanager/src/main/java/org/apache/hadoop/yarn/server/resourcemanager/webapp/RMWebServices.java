@@ -18,6 +18,7 @@
 
 package org.apache.hadoop.yarn.server.resourcemanager.webapp;
 
+import org.apache.hadoop.yarn.server.resourcemanager.webapp.dao.NodeLabelsInfo;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import org.apache.commons.logging.Log;
@@ -691,6 +692,179 @@ public class RMWebServices {
     ret.setState(app.getState().toString());
 
     return Response.status(Status.OK).entity(ret).build();
+  }
+  
+  @GET
+  @Path("/get-node-to-labels")
+  @Produces({ MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML })
+  public NodeToLabelsInfo getNodeToLabels(@Context HttpServletRequest hsr) 
+    throws IOException {
+    init();
+
+    NodeToLabelsInfo ntl = new NodeToLabelsInfo();
+    HashMap<String, NodeLabelsInfo> ntlMap = ntl.getNodeToLabels();
+    Map<NodeId, Set<String>> nodeIdToLabels =   
+      rm.getRMContext().getNodeLabelManager().getNodeLabels();
+      
+    for (Map.Entry<NodeId, Set<String>> nitle : nodeIdToLabels.entrySet()) {
+      ntlMap.put(nitle.getKey().toString(), 
+        new NodeLabelsInfo(nitle.getValue()));
+    }
+
+    return ntl;
+  }
+  
+  @POST
+  @Path("/replace-node-to-labels")
+  @Produces({ MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML })
+  public Response replaceLabelsOnNodes(
+    final NodeToLabelsInfo newNodeToLabels,
+    @Context HttpServletRequest hsr) 
+    throws IOException {
+    init();
+    
+    UserGroupInformation callerUGI = getCallerUserGroupInformation(hsr, true);
+    if (callerUGI == null) {
+      String msg = "Unable to obtain user name, user not authenticated for"
+        + " post to .../replace-node-to-labels";
+      throw new AuthorizationException(msg);
+    }
+    if (!rm.getRMContext().getNodeLabelManager().checkAccess(callerUGI)) {
+      String msg = "User " + callerUGI.getShortUserName() + " not authorized"
+        + " for post to .../replace-node-to-labels ";
+      throw new AuthorizationException(msg);
+    }
+    
+    Map<NodeId, Set<String>> nodeIdToLabels = 
+      new HashMap<NodeId, Set<String>>();
+
+    for (Map.Entry<String, NodeLabelsInfo> nitle : 
+      newNodeToLabels.getNodeToLabels().entrySet()) {
+     nodeIdToLabels.put(ConverterUtils.toNodeIdWithDefaultPort(nitle.getKey()),
+       new HashSet<String>(nitle.getValue().getNodeLabels()));
+    }
+    
+    rm.getRMContext().getNodeLabelManager().replaceLabelsOnNode(nodeIdToLabels);
+
+    return Response.status(Status.OK).build();
+  }
+  
+  @GET
+  @Path("/get-node-labels")
+  @Produces({ MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML })
+  public NodeLabelsInfo getClusterNodeLabels(@Context HttpServletRequest hsr) 
+    throws IOException {
+    init();
+
+    NodeLabelsInfo ret = 
+      new NodeLabelsInfo(rm.getRMContext().getNodeLabelManager()
+        .getClusterNodeLabels());
+
+    return ret;
+  }
+  
+  @POST
+  @Path("/add-node-labels")
+  @Produces({ MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML })
+  public Response addToClusterNodeLabels(final NodeLabelsInfo newNodeLabels,
+      @Context HttpServletRequest hsr)
+      throws Exception {
+    init();
+    
+    UserGroupInformation callerUGI = getCallerUserGroupInformation(hsr, true);
+    if (callerUGI == null) {
+      String msg = "Unable to obtain user name, user not authenticated for"
+        + " post to .../add-node-labels";
+      throw new AuthorizationException(msg);
+    }
+    if (!rm.getRMContext().getNodeLabelManager().checkAccess(callerUGI)) {
+      String msg = "User " + callerUGI.getShortUserName() + " not authorized"
+        + " for post to .../add-node-labels ";
+      throw new AuthorizationException(msg);
+    }
+    
+    rm.getRMContext().getNodeLabelManager()
+        .addToCluserNodeLabels(new HashSet<String>(
+          newNodeLabels.getNodeLabels()));
+            
+    return Response.status(Status.OK).build();
+
+  }
+  
+  @POST
+  @Path("/remove-node-labels")
+  @Produces({ MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML })
+  public Response removeFromCluserNodeLabels(final NodeLabelsInfo oldNodeLabels,
+      @Context HttpServletRequest hsr)
+      throws Exception {
+    init();
+    
+    UserGroupInformation callerUGI = getCallerUserGroupInformation(hsr, true);
+    if (callerUGI == null) {
+      String msg = "Unable to obtain user name, user not authenticated for"
+        + " post to .../remove-node-labels";
+      throw new AuthorizationException(msg);
+    }
+    if (!rm.getRMContext().getNodeLabelManager().checkAccess(callerUGI)) {
+      String msg = "User " + callerUGI.getShortUserName() + " not authorized"
+        + " for post to .../remove-node-labels ";
+      throw new AuthorizationException(msg);
+    }
+    
+    rm.getRMContext().getNodeLabelManager()
+        .removeFromClusterNodeLabels(new HashSet<String>(
+          oldNodeLabels.getNodeLabels()));
+            
+    return Response.status(Status.OK).build();
+
+  }
+  
+  @GET
+  @Path("/nodes/{nodeId}/get-labels")
+  @Produces({ MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML })
+  public NodeLabelsInfo getLabelsOnNode(@Context HttpServletRequest hsr,
+                                  @PathParam("nodeId") String nodeId) 
+    throws IOException {
+    init();
+
+    NodeId nid = ConverterUtils.toNodeIdWithDefaultPort(nodeId);
+    return new NodeLabelsInfo(
+      rm.getRMContext().getNodeLabelManager().getLabelsOnNode(nid));
+
+  }
+  
+  @POST
+  @Path("/nodes/{nodeId}/replace-labels")
+  @Produces({ MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML })
+  public Response replaceLabelsOnNode(NodeLabelsInfo newNodeLabelsInfo,
+      @Context HttpServletRequest hsr, @PathParam("nodeId") String nodeId)
+      throws Exception {
+    init();
+    
+    UserGroupInformation callerUGI = getCallerUserGroupInformation(hsr, true);
+    if (callerUGI == null) {
+      String msg = "Unable to obtain user name, user not authenticated for"
+        + " post to .../nodes/nodeid/replace-labels";
+      throw new AuthorizationException(msg);
+    }
+
+    if (!rm.getRMContext().getNodeLabelManager().checkAccess(callerUGI)) {
+      String msg = "User " + callerUGI.getShortUserName() + " not authorized"
+        + " for post to .../nodes/nodeid/replace-labels";
+      throw new AuthorizationException(msg);
+    }
+    
+    NodeId nid = ConverterUtils.toNodeIdWithDefaultPort(nodeId);
+    
+    Map<NodeId, Set<String>> newLabelsForNode = new HashMap<NodeId,
+      Set<String>>();
+    
+    newLabelsForNode.put(nid, new HashSet<String>(newNodeLabelsInfo.getNodeLabels()));
+    
+    rm.getRMContext().getNodeLabelManager().replaceLabelsOnNode(newLabelsForNode);
+    
+    return Response.status(Status.OK).build();
+
   }
 
   protected Response killApp(RMApp app, UserGroupInformation callerUGI,

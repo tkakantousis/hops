@@ -72,6 +72,12 @@ boolean keepContainers;
 @XmlElement(name = "tag")
 Set<String> tags;
 
+@XmlElement(name = "app-node-label-expression")
+String appNodeLabelExpression;
+ 
+@XmlElement(name = "am-container-node-label-expression")
+String amContainerNodeLabelExpression;
+ 
 public ApplicationSubmissionContextInfo() {
     applicationId = "";
     applicationName = "";
@@ -83,6 +89,8 @@ public ApplicationSubmissionContextInfo() {
     keepContainers = false;
     applicationType = "";
     tags = new HashSet<String>();
+    appNodeLabelExpression = "";
+    amContainerNodeLabelExpression = "";
 }
 
 public String getApplicationId() {
@@ -133,6 +141,14 @@ public Set<String> getApplicationTags() {
     return tags;
 }
 
+public String getAppNodeLabelExpression() {
+    return appNodeLabelExpression;
+}
+  
+public String getAMContainerNodeLabelExpression() {
+    return amContainerNodeLabelExpression;
+}
+
 public void setApplicationId(String applicationId) {
     this.applicationId = applicationId;
 }
@@ -172,6 +188,14 @@ public void setResource(ResourceInfo resource) {
 
 public void setApplicationType(String applicationType) {
     this.applicationType = applicationType;
+}
+
+public void setAppNodeLabelExpression(String appNodeLabelExpression) {
+    this.appNodeLabelExpression = appNodeLabelExpression;
+  }
+ 
+public void setAMContainerNodeLabelExpression(String nodeLabelExpression) {
+    this.amContainerNodeLabelExpression = nodeLabelExpression;
 }
 
 public void setKeepContainersAcrossApplicationAttempts(boolean keepContainers) {
