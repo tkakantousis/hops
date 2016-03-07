@@ -107,6 +107,7 @@ import org.junit.Test;
 import io.hops.ha.common.TransactionState;
 import io.hops.metadata.util.RMStorageFactory;
 import io.hops.metadata.util.YarnAPIStorageFactory;
+import org.apache.hadoop.yarn.util.ControlledClock;
 
 @SuppressWarnings("unchecked")
 public class TestRMContainerAllocator {
