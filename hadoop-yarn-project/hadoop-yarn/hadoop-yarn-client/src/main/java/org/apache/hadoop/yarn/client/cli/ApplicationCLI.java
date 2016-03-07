@@ -44,6 +44,7 @@ import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import org.apache.hadoop.yarn.api.records.ApplicationResourceUsageReport;
 
 @Private
 @Unstable
@@ -460,6 +461,11 @@ public class ApplicationCLI extends YarnCLI {
       appReportStr.println(appReport.getRpcPort());
       appReportStr.print("\tAM Host : ");
       appReportStr.println(appReport.getHost());
+      appReportStr.print("\tAggregate Resource Allocation : ");
+
+      ApplicationResourceUsageReport usageReport = appReport.getApplicationResourceUsageReport();
+      appReportStr.print(usageReport.getMemorySeconds() + " MB-seconds, ");
+      appReportStr.println(usageReport.getVcoreSeconds() + " vcore-seconds");
       appReportStr.print("\tDiagnostics : ");
       appReportStr.print(appReport.getDiagnostics());
     } else {

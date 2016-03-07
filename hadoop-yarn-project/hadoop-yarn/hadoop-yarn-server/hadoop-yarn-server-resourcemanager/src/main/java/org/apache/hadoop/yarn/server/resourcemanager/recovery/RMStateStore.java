@@ -165,19 +165,24 @@ import org.apache.hadoop.yarn.server.resourcemanager.rmcontainer.RMContainerStat
     String diagnostics;
     int exitStatus = ContainerExitStatus.INVALID;
     FinalApplicationStatus amUnregisteredFinalStatus;
-
+    long memorySeconds;
+    long vcoreSeconds;
+  
     public ApplicationAttemptState(ApplicationAttemptId attemptId,
         org.apache.hadoop.yarn.api.records.Container masterContainer,
-        Credentials appAttemptCredentials, long startTime) {
+        Credentials appAttemptCredentials, 
+        long startTime, long memorySeconds, long vcoreSeconds) {
       this(attemptId, masterContainer, appAttemptCredentials, startTime, null,
-          null, "", null, ContainerExitStatus.INVALID, 0, "N/A", -1, null, null);
+          null, "", null, ContainerExitStatus.INVALID, memorySeconds, 
+          vcoreSeconds,0, "N/A", -1, null, null);
     }
 
     public ApplicationAttemptState(ApplicationAttemptId attemptId,
         org.apache.hadoop.yarn.api.records.Container masterContainer,
         Credentials appAttemptCredentials, long startTime,
         RMAppAttemptState state, String finalTrackingUrl, String diagnostics,
-        FinalApplicationStatus amUnregisteredFinalStatus, int exitStatus, float progress,
+        FinalApplicationStatus amUnregisteredFinalStatus, int exitStatus, 
+        long memorySeconds, long vcoreSeconds, float progress,
         String host, int rpcPort, Set<NodeId> ranNodes,
         List<org.apache.hadoop.yarn.api.records.ContainerStatus> justFinishedContainers) {
       this.attemptId = attemptId;
@@ -190,6 +195,8 @@ import org.apache.hadoop.yarn.server.resourcemanager.rmcontainer.RMContainerStat
       this.diagnostics = diagnostics == null ? "" : diagnostics;
       this.amUnregisteredFinalStatus = amUnregisteredFinalStatus;
       this.exitStatus = exitStatus;
+      this.memorySeconds = memorySeconds;
+      this.vcoreSeconds = vcoreSeconds;
       this.host = host;
       this.rpcPort = rpcPort;
       this.ranNodes = ranNodes;
@@ -253,6 +260,14 @@ import org.apache.hadoop.yarn.server.resourcemanager.rmcontainer.RMContainerStat
 
     public int getAMContainerExitStatus(){
       return this.exitStatus;
+    }
+    
+    public long getMemorySeconds() {
+      return memorySeconds;
+    }
+
+    public long getVcoreSeconds() {
+      return vcoreSeconds;
     }
   }
 
@@ -1066,11 +1081,13 @@ import org.apache.hadoop.yarn.server.resourcemanager.rmcontainer.RMContainerStat
    */ public synchronized void storeNewApplicationAttempt(
       RMAppAttempt appAttempt, TransactionState transactionState) {
     Credentials credentials = getCredentialsFromAppAttempt(appAttempt);
-
+    AggregateAppResourceUsage resUsage =
+        appAttempt.getRMAppAttemptMetrics().getAggregateAppResourceUsage();
     ApplicationAttemptState attemptState =
         new ApplicationAttemptState(appAttempt.getAppAttemptId(),
             appAttempt.getMasterContainer(), credentials,
-            appAttempt.getStartTime());
+            appAttempt.getStartTime(), resUsage.getMemorySeconds(),
+            resUsage.getVcoreSeconds());
 
     dispatcher.getEventHandler().handle(
         new RMStateStoreAppAttemptEvent(attemptState, transactionState));
@@ -1257,7 +1274,7 @@ import org.apache.hadoop.yarn.server.resourcemanager.rmcontainer.RMContainerStat
       ApplicationAttemptState attemptState =
           new ApplicationAttemptState(appAttempt.getAppAttemptId(),
               appAttempt.getMasterContainer(), credentials,
-              appAttempt.getStartTime());
+              appAttempt.getStartTime(), 0, 0);
       appState.attempts.put(attemptState.getAttemptId(), attemptState);
     }
 

@@ -120,7 +120,9 @@ public class MemoryRMStateStore extends RMStateStore {
     ApplicationAttemptState attemptState =
         new ApplicationAttemptState(appAttemptId,
             attemptStateData.getMasterContainer(), credentials,
-            attemptStateData.getStartTime());
+            attemptStateData.getStartTime(),
+            attemptStateData.getMemorySeconds(),
+            attemptStateData.getVcoreSeconds());
 
     ApplicationState appState = state.getApplicationState()
         .get(attemptState.getAttemptId().getApplicationId());
@@ -149,6 +151,8 @@ public class MemoryRMStateStore extends RMStateStore {
             attemptStateData.getDiagnostics(),
             attemptStateData.getFinalApplicationStatus(),
             attemptStateData.getAMContainerExitStatus(),
+            attemptStateData.getMemorySeconds(),
+            attemptStateData.getVcoreSeconds(),
             attemptStateData.getProgress(), attemptStateData.getHost(),
             attemptStateData.getRpcPort(), attemptStateData.getRanNodes(),
             attemptStateData.getJustFinishedContainers());
